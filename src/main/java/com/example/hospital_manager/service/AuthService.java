@@ -28,20 +28,29 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
 
     public UserResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.username())) {
-            throw new ApiException(HttpStatus.CONFLICT, "Username already exists: " + request.username());
+    if (request.role() != Role.PATIENT) {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.isAuthenticated() &&
+                auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Valid ADMIN JWT token is required to register staff roles");
         }
-
-        AppUser user = AppUser.builder()
-                .username(request.username())
-                .password(passwordEncoder.encode(request.password()))
-                .fullName(request.fullName())
-                .role(request.role())
-                .build();
-
-        AppUser saved = userRepository.save(user);
-        return toUserResponse(saved);
     }
+
+    if (userRepository.existsByUsername(request.username())) {
+        throw new ApiException(HttpStatus.CONFLICT, "Username already exists: " + request.username());
+    }
+
+    AppUser user = AppUser.builder()
+            .username(request.username())
+            .password(passwordEncoder.encode(request.password()))
+            .fullName(request.fullName())
+            .role(request.role())
+            .build();
+
+    AppUser saved = userRepository.save(user);
+    return toUserResponse(saved);
+}
 
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
@@ -84,4 +93,5 @@ public class AuthService {
     private UserResponse toUserResponse(AppUser user) {
         return new UserResponse(user.getId(), user.getUsername(), user.getFullName(), user.getRole());
     }
+    
 }
